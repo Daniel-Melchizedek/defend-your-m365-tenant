@@ -1,0 +1,302 @@
+[
+  {
+    "Number": 1,
+    "Recommendation": "Ensure multifactor authentication is enabled for all users in administrative roles",
+    "Status": "IMPLEMENTED",
+    "Evidence": "Enabled MFA policy found: 'Lab - Require MFA for all users' (ID: 7783a2d6-c798-46d1-8c2a-1dc5e8f36f16, state: enabled); 'Lab - Require MFA for medium and high sign-in risk' (ID: eef5c93e-1d05-49ea-9e65-4acbcc060f6d, state: enabled); 'Lab - Require secure password change for high user risk' (ID: e2c761d0-06c5-47ac-b49c-8ffd87f2693f, state: enabled). This checks configuration, not every account or sign-in. Coverage advisory: broad MFA protection with only approved exclusions was verified. Exclusion advisory: 'Lab - Require MFA for all users': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True; 'Lab - Require MFA for medium and high sign-in risk': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True; 'Lab - Require secure password change for high user risk': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True. Exclusions do not change the enabled-policy result. Registration advisory: 1 of 4 checked enabled accounts are not reported MFA-capable and 0 have missing data. Registration data can lag by up to 36 hours and does not determine the enabled-policy result.",
+    "Details": "Enabled MFA policy found: 'Lab - Require MFA for all users' (ID: 7783a2d6-c798-46d1-8c2a-1dc5e8f36f16, state: enabled); 'Lab - Require MFA for medium and high sign-in risk' (ID: eef5c93e-1d05-49ea-9e65-4acbcc060f6d, state: enabled); 'Lab - Require secure password change for high user risk' (ID: e2c761d0-06c5-47ac-b49c-8ffd87f2693f, state: enabled). This checks configuration, not every account or sign-in. Coverage advisory: broad MFA protection with only approved exclusions was verified. Exclusion advisory: 'Lab - Require MFA for all users': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True; 'Lab - Require MFA for medium and high sign-in risk': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True; 'Lab - Require secure password change for high user risk': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True. Exclusions do not change the enabled-policy result. Registration advisory: 1 of 4 checked enabled accounts are not reported MFA-capable and 0 have missing data. Registration data can lag by up to 36 hours and does not determine the enabled-policy result.",
+    "PolicyConfiguration": {
+      "Status": "IMPLEMENTED",
+      "AssessmentBasis": "Enabled MFA configuration, not complete sign-in coverage",
+      "PolicyFound": true,
+      "EnabledPolicyFound": true,
+      "SecurityDefaultsEnabled": false,
+      "ProtectionConfigured": true,
+      "Resolved": true,
+      "CoverageVerified": true,
+      "MissingAdministrativeRoles": [],
+      "Policies": [
+        {
+          "Id": "7783a2d6-c798-46d1-8c2a-1dc5e8f36f16",
+          "DisplayName": "Lab - Require MFA for all users",
+          "State": "enabled",
+          "TargetsAllUsers": true,
+          "IncludedRoleIds": [],
+          "ExcludedUserIds": [
+            "3410ee51-2c02-4829-843a-e9f44757d8f3",
+            "e13ea4a7-a05a-4442-8864-0091a0e1244b"
+          ],
+          "ExcludedGroupIds": [],
+          "ExcludedRoleIds": [],
+          "ExcludesGuestsOrExternalUsers": false,
+          "ExclusionsApproved": true
+        },
+        {
+          "Id": "eef5c93e-1d05-49ea-9e65-4acbcc060f6d",
+          "DisplayName": "Lab - Require MFA for medium and high sign-in risk",
+          "State": "enabled",
+          "TargetsAllUsers": true,
+          "IncludedRoleIds": [],
+          "ExcludedUserIds": [
+            "3410ee51-2c02-4829-843a-e9f44757d8f3",
+            "e13ea4a7-a05a-4442-8864-0091a0e1244b"
+          ],
+          "ExcludedGroupIds": [],
+          "ExcludedRoleIds": [],
+          "ExcludesGuestsOrExternalUsers": false,
+          "ExclusionsApproved": true
+        },
+        {
+          "Id": "e2c761d0-06c5-47ac-b49c-8ffd87f2693f",
+          "DisplayName": "Lab - Require secure password change for high user risk",
+          "State": "enabled",
+          "TargetsAllUsers": true,
+          "IncludedRoleIds": [],
+          "ExcludedUserIds": [
+            "3410ee51-2c02-4829-843a-e9f44757d8f3",
+            "e13ea4a7-a05a-4442-8864-0091a0e1244b"
+          ],
+          "ExcludedGroupIds": [],
+          "ExcludedRoleIds": [],
+          "ExcludesGuestsOrExternalUsers": false,
+          "ExclusionsApproved": true
+        }
+      ],
+      "CoverageEvidence": "Coverage advisory: broad MFA protection with only approved exclusions was verified.",
+      "ExclusionEvidence": "Exclusion advisory: 'Lab - Require MFA for all users': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True; 'Lab - Require MFA for medium and high sign-in risk': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True; 'Lab - Require secure password change for high user risk': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True. Exclusions do not change the enabled-policy result.",
+      "Evidence": "Enabled MFA policy found: 'Lab - Require MFA for all users' (ID: 7783a2d6-c798-46d1-8c2a-1dc5e8f36f16, state: enabled); 'Lab - Require MFA for medium and high sign-in risk' (ID: eef5c93e-1d05-49ea-9e65-4acbcc060f6d, state: enabled); 'Lab - Require secure password change for high user risk' (ID: e2c761d0-06c5-47ac-b49c-8ffd87f2693f, state: enabled). This checks configuration, not every account or sign-in. Coverage advisory: broad MFA protection with only approved exclusions was verified. Exclusion advisory: 'Lab - Require MFA for all users': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True; 'Lab - Require MFA for medium and high sign-in risk': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True; 'Lab - Require secure password change for high user risk': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True. Exclusions do not change the enabled-policy result."
+    },
+    "TenantId": "7a9b5e57-db07-4525-896c-0341e35c8f28",
+    "CheckedAt": "2026-10-30T16:26:09.1333573+00:00"
+  },
+  {
+    "Number": 2,
+    "Recommendation": "Ensure multifactor authentication is enabled for all users",
+    "Status": "IMPLEMENTED",
+    "Evidence": "Enabled MFA policy found: 'Lab - Require MFA for all users' (ID: 7783a2d6-c798-46d1-8c2a-1dc5e8f36f16, state: enabled); 'Lab - Require MFA for medium and high sign-in risk' (ID: eef5c93e-1d05-49ea-9e65-4acbcc060f6d, state: enabled); 'Lab - Require secure password change for high user risk' (ID: e2c761d0-06c5-47ac-b49c-8ffd87f2693f, state: enabled). This checks configuration, not every account or sign-in. Coverage advisory: broad MFA protection with only approved exclusions was verified. Exclusion advisory: 'Lab - Require MFA for all users': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True; 'Lab - Require MFA for medium and high sign-in risk': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True; 'Lab - Require secure password change for high user risk': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True. Exclusions do not change the enabled-policy result. Registration advisory: 7 of 10 checked enabled accounts are not reported MFA-capable and 0 have missing data. Registration data can lag by up to 36 hours and does not determine the enabled-policy result.",
+    "Details": "Enabled MFA policy found: 'Lab - Require MFA for all users' (ID: 7783a2d6-c798-46d1-8c2a-1dc5e8f36f16, state: enabled); 'Lab - Require MFA for medium and high sign-in risk' (ID: eef5c93e-1d05-49ea-9e65-4acbcc060f6d, state: enabled); 'Lab - Require secure password change for high user risk' (ID: e2c761d0-06c5-47ac-b49c-8ffd87f2693f, state: enabled). This checks configuration, not every account or sign-in. Coverage advisory: broad MFA protection with only approved exclusions was verified. Exclusion advisory: 'Lab - Require MFA for all users': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True; 'Lab - Require MFA for medium and high sign-in risk': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True; 'Lab - Require secure password change for high user risk': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True. Exclusions do not change the enabled-policy result. Registration advisory: 7 of 10 checked enabled accounts are not reported MFA-capable and 0 have missing data. Registration data can lag by up to 36 hours and does not determine the enabled-policy result.",
+    "PolicyConfiguration": {
+      "Status": "IMPLEMENTED",
+      "AssessmentBasis": "Enabled MFA configuration, not complete sign-in coverage",
+      "PolicyFound": true,
+      "EnabledPolicyFound": true,
+      "SecurityDefaultsEnabled": false,
+      "ProtectionConfigured": true,
+      "Resolved": true,
+      "CoverageVerified": true,
+      "MissingAdministrativeRoles": [],
+      "Policies": [
+        {
+          "Id": "7783a2d6-c798-46d1-8c2a-1dc5e8f36f16",
+          "DisplayName": "Lab - Require MFA for all users",
+          "State": "enabled",
+          "TargetsAllUsers": true,
+          "IncludedRoleIds": [],
+          "ExcludedUserIds": [
+            "3410ee51-2c02-4829-843a-e9f44757d8f3",
+            "e13ea4a7-a05a-4442-8864-0091a0e1244b"
+          ],
+          "ExcludedGroupIds": [],
+          "ExcludedRoleIds": [],
+          "ExcludesGuestsOrExternalUsers": false,
+          "ExclusionsApproved": true
+        },
+        {
+          "Id": "eef5c93e-1d05-49ea-9e65-4acbcc060f6d",
+          "DisplayName": "Lab - Require MFA for medium and high sign-in risk",
+          "State": "enabled",
+          "TargetsAllUsers": true,
+          "IncludedRoleIds": [],
+          "ExcludedUserIds": [
+            "3410ee51-2c02-4829-843a-e9f44757d8f3",
+            "e13ea4a7-a05a-4442-8864-0091a0e1244b"
+          ],
+          "ExcludedGroupIds": [],
+          "ExcludedRoleIds": [],
+          "ExcludesGuestsOrExternalUsers": false,
+          "ExclusionsApproved": true
+        },
+        {
+          "Id": "e2c761d0-06c5-47ac-b49c-8ffd87f2693f",
+          "DisplayName": "Lab - Require secure password change for high user risk",
+          "State": "enabled",
+          "TargetsAllUsers": true,
+          "IncludedRoleIds": [],
+          "ExcludedUserIds": [
+            "3410ee51-2c02-4829-843a-e9f44757d8f3",
+            "e13ea4a7-a05a-4442-8864-0091a0e1244b"
+          ],
+          "ExcludedGroupIds": [],
+          "ExcludedRoleIds": [],
+          "ExcludesGuestsOrExternalUsers": false,
+          "ExclusionsApproved": true
+        }
+      ],
+      "CoverageEvidence": "Coverage advisory: broad MFA protection with only approved exclusions was verified.",
+      "ExclusionEvidence": "Exclusion advisory: 'Lab - Require MFA for all users': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True; 'Lab - Require MFA for medium and high sign-in risk': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True; 'Lab - Require secure password change for high user risk': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True. Exclusions do not change the enabled-policy result.",
+      "Evidence": "Enabled MFA policy found: 'Lab - Require MFA for all users' (ID: 7783a2d6-c798-46d1-8c2a-1dc5e8f36f16, state: enabled); 'Lab - Require MFA for medium and high sign-in risk' (ID: eef5c93e-1d05-49ea-9e65-4acbcc060f6d, state: enabled); 'Lab - Require secure password change for high user risk' (ID: e2c761d0-06c5-47ac-b49c-8ffd87f2693f, state: enabled). This checks configuration, not every account or sign-in. Coverage advisory: broad MFA protection with only approved exclusions was verified. Exclusion advisory: 'Lab - Require MFA for all users': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True; 'Lab - Require MFA for medium and high sign-in risk': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True; 'Lab - Require secure password change for high user risk': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True. Exclusions do not change the enabled-policy result."
+    },
+    "TenantId": "7a9b5e57-db07-4525-896c-0341e35c8f28",
+    "CheckedAt": "2026-10-30T16:26:09.1333573+00:00"
+  },
+  {
+    "Number": 3,
+    "Recommendation": "Enable Conditional Access policies to block legacy authentication",
+    "Status": "IMPLEMENTED",
+    "Evidence": "Enforced legacy-authentication block: Lab - Block legacy authentication.",
+    "Details": "Enforced legacy-authentication block: Lab - Block legacy authentication.",
+    "PolicyConfiguration": null,
+    "TenantId": "7a9b5e57-db07-4525-896c-0341e35c8f28",
+    "CheckedAt": "2026-10-30T16:26:09.1333573+00:00"
+  },
+  {
+    "Number": 4,
+    "Recommendation": "Enable Microsoft Entra ID Identity Protection sign-in risk policies",
+    "Status": "IMPLEMENTED",
+    "Evidence": "Enabled sign-in risk MFA policy found: 'Lab - Require MFA for medium and high sign-in risk' (ID: eef5c93e-1d05-49ea-9e65-4acbcc060f6d, state: enabled). Matching requires All users, medium and high sign-in risk, MFA, and every-time primary-and-secondary reauthentication. Security Defaults alone does not satisfy this check. This checks configuration, not every account or sign-in. Coverage advisory: broad sign-in risk MFA protection with only approved exclusions was verified. Exclusion advisory: 'Lab - Require MFA for medium and high sign-in risk': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True. Exclusions do not change the enabled-policy result.",
+    "Details": "Enabled sign-in risk MFA policy found: 'Lab - Require MFA for medium and high sign-in risk' (ID: eef5c93e-1d05-49ea-9e65-4acbcc060f6d, state: enabled). Matching requires All users, medium and high sign-in risk, MFA, and every-time primary-and-secondary reauthentication. Security Defaults alone does not satisfy this check. This checks configuration, not every account or sign-in. Coverage advisory: broad sign-in risk MFA protection with only approved exclusions was verified. Exclusion advisory: 'Lab - Require MFA for medium and high sign-in risk': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True. Exclusions do not change the enabled-policy result.",
+    "PolicyConfiguration": {
+      "Status": "IMPLEMENTED",
+      "AssessmentBasis": "Enabled sign-in risk MFA configuration, not complete sign-in coverage",
+      "PolicyFound": true,
+      "EnabledPolicyFound": true,
+      "SecurityDefaultsEnabled": null,
+      "ProtectionConfigured": true,
+      "Resolved": true,
+      "CoverageVerified": true,
+      "MissingAdministrativeRoles": [],
+      "Policies": [
+        {
+          "Id": "eef5c93e-1d05-49ea-9e65-4acbcc060f6d",
+          "DisplayName": "Lab - Require MFA for medium and high sign-in risk",
+          "State": "enabled",
+          "TargetsAllUsers": true,
+          "IncludedRoleIds": [],
+          "ExcludedUserIds": [
+            "3410ee51-2c02-4829-843a-e9f44757d8f3",
+            "e13ea4a7-a05a-4442-8864-0091a0e1244b"
+          ],
+          "ExcludedGroupIds": [],
+          "ExcludedRoleIds": [],
+          "ExcludesGuestsOrExternalUsers": false,
+          "ExclusionsApproved": true,
+          "SignInRiskLevels": [
+            "medium",
+            "high"
+          ],
+          "SignInFrequency": {
+            "IsEnabled": true,
+            "FrequencyInterval": "everyTime",
+            "AuthenticationType": "primaryAndSecondaryAuthentication"
+          }
+        }
+      ],
+      "CoverageEvidence": "Coverage advisory: broad sign-in risk MFA protection with only approved exclusions was verified.",
+      "ExclusionEvidence": "Exclusion advisory: 'Lab - Require MFA for medium and high sign-in risk': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True. Exclusions do not change the enabled-policy result.",
+      "Evidence": "Enabled sign-in risk MFA policy found: 'Lab - Require MFA for medium and high sign-in risk' (ID: eef5c93e-1d05-49ea-9e65-4acbcc060f6d, state: enabled). Matching requires All users, medium and high sign-in risk, MFA, and every-time primary-and-secondary reauthentication. Security Defaults alone does not satisfy this check. This checks configuration, not every account or sign-in. Coverage advisory: broad sign-in risk MFA protection with only approved exclusions was verified. Exclusion advisory: 'Lab - Require MFA for medium and high sign-in risk': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True. Exclusions do not change the enabled-policy result."
+    },
+    "TenantId": "7a9b5e57-db07-4525-896c-0341e35c8f28",
+    "CheckedAt": "2026-10-30T16:26:09.1333573+00:00"
+  },
+  {
+    "Number": 5,
+    "Recommendation": "Enable Microsoft Entra ID Identity Protection user risk policies",
+    "Status": "IMPLEMENTED",
+    "Evidence": "Enabled user risk remediation policy found: 'Lab - Require secure password change for high user risk' (ID: e2c761d0-06c5-47ac-b49c-8ffd87f2693f, state: enabled). Matching requires All users, high user risk, MFA AND exactly one remediation control (passwordChange or riskRemediation), and every-time primary-and-secondary reauthentication. Modern riskRemediation requires an MFA authentication strength. Security Defaults alone does not satisfy this check. This checks configuration, not every account or sign-in. Coverage advisory: broad user risk remediation protection with only approved exclusions was verified. Exclusion advisory: 'Lab - Require secure password change for high user risk': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True. Exclusions do not change the enabled-policy result.",
+    "Details": "Enabled user risk remediation policy found: 'Lab - Require secure password change for high user risk' (ID: e2c761d0-06c5-47ac-b49c-8ffd87f2693f, state: enabled). Matching requires All users, high user risk, MFA AND exactly one remediation control (passwordChange or riskRemediation), and every-time primary-and-secondary reauthentication. Modern riskRemediation requires an MFA authentication strength. Security Defaults alone does not satisfy this check. This checks configuration, not every account or sign-in. Coverage advisory: broad user risk remediation protection with only approved exclusions was verified. Exclusion advisory: 'Lab - Require secure password change for high user risk': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True. Exclusions do not change the enabled-policy result.",
+    "PolicyConfiguration": {
+      "Status": "IMPLEMENTED",
+      "AssessmentBasis": "Enabled user risk remediation configuration, not complete sign-in coverage",
+      "PolicyFound": true,
+      "EnabledPolicyFound": true,
+      "SecurityDefaultsEnabled": null,
+      "ProtectionConfigured": true,
+      "Resolved": true,
+      "CoverageVerified": true,
+      "MissingAdministrativeRoles": [],
+      "Policies": [
+        {
+          "Id": "e2c761d0-06c5-47ac-b49c-8ffd87f2693f",
+          "DisplayName": "Lab - Require secure password change for high user risk",
+          "State": "enabled",
+          "TargetsAllUsers": true,
+          "IncludedRoleIds": [],
+          "ExcludedUserIds": [
+            "3410ee51-2c02-4829-843a-e9f44757d8f3",
+            "e13ea4a7-a05a-4442-8864-0091a0e1244b"
+          ],
+          "ExcludedGroupIds": [],
+          "ExcludedRoleIds": [],
+          "ExcludesGuestsOrExternalUsers": false,
+          "ExclusionsApproved": true,
+          "UserRiskLevels": [
+            "high"
+          ],
+          "RemediationControl": "passwordChange",
+          "GrantOperator": "AND",
+          "AuthenticationStrengthId": null,
+          "SignInFrequency": {
+            "IsEnabled": true,
+            "FrequencyInterval": "everyTime",
+            "AuthenticationType": "primaryAndSecondaryAuthentication"
+          }
+        }
+      ],
+      "CoverageEvidence": "Coverage advisory: broad user risk remediation protection with only approved exclusions was verified.",
+      "ExclusionEvidence": "Exclusion advisory: 'Lab - Require secure password change for high user risk': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True. Exclusions do not change the enabled-policy result.",
+      "Evidence": "Enabled user risk remediation policy found: 'Lab - Require secure password change for high user risk' (ID: e2c761d0-06c5-47ac-b49c-8ffd87f2693f, state: enabled). Matching requires All users, high user risk, MFA AND exactly one remediation control (passwordChange or riskRemediation), and every-time primary-and-secondary reauthentication. Modern riskRemediation requires an MFA authentication strength. Security Defaults alone does not satisfy this check. This checks configuration, not every account or sign-in. Coverage advisory: broad user risk remediation protection with only approved exclusions was verified. Exclusion advisory: 'Lab - Require secure password change for high user risk': excluded users=[3410ee51-2c02-4829-843a-e9f44757d8f3, e13ea4a7-a05a-4442-8864-0091a0e1244b]; groups=[]; roles=[]; guests/external=False; approved=True. Exclusions do not change the enabled-policy result."
+    },
+    "TenantId": "7a9b5e57-db07-4525-896c-0341e35c8f28",
+    "CheckedAt": "2026-10-30T16:26:09.1333573+00:00"
+  },
+  {
+    "Number": 6,
+    "Recommendation": "Ensure user consent to apps accessing company data on their behalf is not allowed",
+    "Status": "IMPLEMENTED",
+    "Evidence": "No default-user self-consent policy is assigned. Existing consent grants are not revoked by this setting.",
+    "Details": "No default-user self-consent policy is assigned. Existing consent grants are not revoked by this setting.",
+    "PolicyConfiguration": null,
+    "TenantId": "7a9b5e57-db07-4525-896c-0341e35c8f28",
+    "CheckedAt": "2026-10-30T16:26:09.1333573+00:00"
+  },
+  {
+    "Number": 7,
+    "Recommendation": "Only invited users should be automatically admitted to Teams meetings",
+    "Status": "IMPLEMENTED",
+    "Evidence": "Global: AutoAdmittedUsers is 'InvitedUsers'.",
+    "Details": "Global: AutoAdmittedUsers is 'InvitedUsers'.",
+    "PolicyConfiguration": null,
+    "TenantId": "7a9b5e57-db07-4525-896c-0341e35c8f28",
+    "CheckedAt": "2026-10-30T16:26:09.1333573+00:00"
+  },
+  {
+    "Number": 8,
+    "Recommendation": "Configure which users are allowed to present in Teams meetings",
+    "Status": "IMPLEMENTED",
+    "Evidence": "Global: DesignatedPresenterRoleMode is 'OrganizerOnlyUserOverride'.",
+    "Details": "Global: DesignatedPresenterRoleMode is 'OrganizerOnlyUserOverride'.",
+    "PolicyConfiguration": null,
+    "TenantId": "7a9b5e57-db07-4525-896c-0341e35c8f28",
+    "CheckedAt": "2026-10-30T16:26:09.1333573+00:00"
+  },
+  {
+    "Number": 9,
+    "Recommendation": "Restrict anonymous users from joining meetings",
+    "Status": "IMPLEMENTED",
+    "Evidence": "Global: AllowAnonymousUsersToJoinMeeting is 'False'.",
+    "Details": "Global: AllowAnonymousUsersToJoinMeeting is 'False'.",
+    "PolicyConfiguration": null,
+    "TenantId": "7a9b5e57-db07-4525-896c-0341e35c8f28",
+    "CheckedAt": "2026-10-30T16:26:09.1333573+00:00"
+  },
+  {
+    "Number": 10,
+    "Recommendation": "Ensure 'Self service password reset enabled' is set to 'All'",
+    "Status": "IMPLEMENTED",
+    "Evidence": "Password reset > Properties = All is recorded as operator-confirmed by the script default. Registration note: 3 of 10 enabled member accounts are reported SSPR-registered; 7 are not registered and 0 have missing registration data. 3 are reported SSPR-capable; 7 are not capable and 0 have missing capability data. Registration data can lag by up to 36 hours.",
+    "Details": "Password reset > Properties = All is recorded as operator-confirmed by the script default. Registration note: 3 of 10 enabled member accounts are reported SSPR-registered; 7 are not registered and 0 have missing registration data. 3 are reported SSPR-capable; 7 are not capable and 0 have missing capability data. Registration data can lag by up to 36 hours.",
+    "PolicyConfiguration": null,
+    "TenantId": "7a9b5e57-db07-4525-896c-0341e35c8f28",
+    "CheckedAt": "2026-10-30T16:26:09.1333573+00:00"
+  }
+]
