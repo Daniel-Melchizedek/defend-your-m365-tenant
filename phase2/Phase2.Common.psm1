@@ -399,11 +399,12 @@ function Get-Phase2PimAssessment {
     $eligible = @(Get-Phase2Data $Snapshot 'EligibleSchedules')
     $roles = @(Get-Phase2Data $Snapshot 'RoleAssignments')
     $now = [datetimeoffset]::UtcNow
+    $standing = [System.Collections.Generic.List[string]]::new()
     foreach ($desired in $Config.PimAssignments) {
         $user = @(Resolve-Phase2Users $Snapshot @($desired.Upn))[0]
         $matches = @($eligible | Where-Object {
             $_.principalId -eq $user.id -and $_.roleDefinitionId -eq $desired.RoleDefinitionId -and $_.directoryScopeId -eq '/' -and
-            [datetimeoffset]$_.startDateTime -le $now -and (-not $_.endDateTime -or [datetimeoffset]$_.endDateTime -gt $now)
+            $_.startDateTime -and [datetimeoffset]$_.startDateTime -le $now -and (-not $_.endDateTime -or [datetimeoffset]$_.endDateTime -gt $now)
         })
         if (-not $matches.Count) { return @{ Status = 'NOT-CONFIGURED'; Evidence = "Missing current eligibility: $($desired.Upn), role $($desired.RoleDefinitionId)." } }
         $errorKey = "PimRules:$($desired.RoleDefinitionId)"
@@ -417,18 +418,22 @@ function Get-Phase2PimAssessment {
             return @{ Status = 'NOT-CONFIGURED'; Evidence = 'PIM activation must expire within one hour and require MFA and justification.' }
         }
         $userActive = @($active | Where-Object { $_.principalId -eq $user.id -and
-            [datetimeoffset]$_.startDateTime -le $now -and (-not $_.endDateTime -or [datetimeoffset]$_.endDateTime -gt $now) })
+            (-not $_.startDateTime -or [datetimeoffset]$_.startDateTime -le $now) -and (-not $_.endDateTime -or [datetimeoffset]$_.endDateTime -gt $now) })
+        if (@($userActive | Where-Object { $_.assignmentType -eq 'Activated' -and -not $_.startDateTime }).Count) {
+            throw 'A claimed PIM activation has no verifiable start date.'
+        }
         if (@($userActive | Where-Object { $_.assignmentType -ne 'Activated' }).Count) {
-            return @{ Status = 'STAGED'; Evidence = "Eligibility exists but assigned (non-JIT) access remains for $($desired.Upn)." }
+            $standing.Add("Assigned (non-JIT) access remains for $($desired.Upn).")
         }
         $activationOrigins = @($userActive.roleAssignmentOriginId)
         if (@($roles | Where-Object { $_.principalId -eq $user.id -and $_.id -notin $activationOrigins }).Count) {
-            return @{ Status = 'STAGED'; Evidence = "Direct role access not explained by current PIM activations remains for $($desired.Upn)." }
+            $standing.Add("Direct role access not explained by current PIM activations remains for $($desired.Upn).")
         }
         $memberships = @(Get-Phase2Collection "/users/$($user.id)/transitiveMemberOf?`$select=id")
         if (@($roles | Where-Object { $_.principalId -in @($memberships.id) }).Count) {
-            return @{ Status = 'STAGED'; Evidence = "Group-inherited role access remains for $($desired.Upn); review separately. These scripts do not change groups." }
+            $standing.Add("Group-inherited role access remains for $($desired.Upn); review separately. These scripts do not change groups.")
         }
     }
+    if ($standing.Count) { return @{ Status = 'STAGED'; Evidence = 'All nominated eligibility and activation controls checked. ' + (($standing | Sort-Object -Unique) -join ' ') } }
     @{ Status = 'IMPLEMENTED'; Evidence = 'Configured admins have current eligibility, <=1-hour MFA/justification activation, and no detected standing direct/group roles. Live activation and least-privilege suitability still require human testing.' }
 }

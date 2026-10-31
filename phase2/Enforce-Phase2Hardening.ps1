@@ -3,11 +3,13 @@
 param(
     [string] $ConfigPath = (Join-Path $PSScriptRoot 'config.json'),
     [string] $OutputDirectory = (Join-Path $PSScriptRoot 'reports'),
-    [ValidateSet('Consent', 'ConditionalAccessPilot', 'TeamsPilot')]
+    [ValidateSet('Consent', 'ConditionalAccessPilot', 'TeamsPilot', 'License', 'PimEligibility')]
     [ValidateNotNullOrEmpty()] [string[]] $Action = @('ConditionalAccessPilot', 'TeamsPilot', 'Consent'),
     [switch] $Apply,
     [switch] $DeviceCode,
-    [switch] $EmergencyAccessTested
+    [switch] $EmergencyAccessTested,
+    [string] $LicenseUserUpn,
+    [guid] $LicenseSkuId
 )
 
 $ErrorActionPreference = 'Stop'
@@ -20,6 +22,12 @@ if ($Apply -and -not $WhatIfPreference -and 'Consent' -in $Action) {
 if ($Apply -and -not $WhatIfPreference -and 'ConditionalAccessPilot' -in $Action) {
     $scopes += 'Policy.ReadWrite.ConditionalAccess'
 }
+if ($Apply -and -not $WhatIfPreference -and 'License' -in $Action) {
+    $scopes += 'LicenseAssignment.ReadWrite.All'
+}
+if ($Apply -and -not $WhatIfPreference -and 'PimEligibility' -in $Action) {
+    $scopes += @('RoleEligibilitySchedule.ReadWrite.Directory', 'RoleManagementPolicy.ReadWrite.Directory')
+}
 $operator = Connect-Phase2Graph -Config $config -WriteScopes $scopes -DeviceCode:$DeviceCode
 $results = [System.Collections.Generic.List[object]]::new()
 
@@ -27,6 +35,185 @@ foreach ($step in @($Action | Select-Object -Unique)) {
     $beforeFile = $null
     try {
         switch ($step) {
+            'PimEligibility' {
+                if (-not $config.PimAssignments.Count) { throw 'Explicit PIM nominations are required.' }
+                $snapshot = Get-Phase2Snapshot -Config $config -SkipTeams
+                $users = @(Resolve-Phase2Users $snapshot @($config.PimAssignments.Upn | Sort-Object -Unique))
+                Assert-Phase2Readiness -Snapshot $snapshot -Users $users -Registration
+                $roles = @(Get-Phase2Data $snapshot 'Roles')
+                $assignments = @(Get-Phase2Data $snapshot 'RolePolicyAssignments')
+                $eligible = @(Get-Phase2Data $snapshot 'EligibleSchedules')
+                $direct = @(Get-Phase2Data $snapshot 'RoleAssignments')
+                $requests = @(Get-Phase2Collection '/roleManagement/directory/roleEligibilityScheduleRequests')
+                $plans = [System.Collections.Generic.List[object]]::new()
+                $seen = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+                $now = [datetimeoffset]::UtcNow
+                foreach ($nomination in $config.PimAssignments) {
+                    if ($nomination.Upn -in $config.EmergencyUpns -or -not $seen.Add("$($nomination.Upn):$($nomination.RoleDefinitionId)")) {
+                        throw 'Emergency or duplicate PIM nomination rejected.'
+                    }
+                    $user = @($users | Where-Object userPrincipalName -eq $nomination.Upn)[0]
+                    $role = @($roles | Where-Object { $_.id -eq $nomination.RoleDefinitionId -and $_.isBuiltIn -eq $true })
+                    if ($role.Count -ne 1 -or $role[0].id -notin @('b1be1c3e-b65d-4f19-8427-f6fa0d97feb9', '69091246-20e8-4a56-aa4d-066075b2a7a8')) {
+                        throw 'Only the approved Conditional Access Administrator and Teams Administrator roles are supported.'
+                    }
+                    $policy = @($assignments | Where-Object { $_.roleDefinitionId -eq $role[0].id -and $_.scopeId -eq '/' -and $_.scopeType -eq 'DirectoryRole' })
+                    if ($policy.Count -ne 1) { throw 'PIM role policy assignment is missing or ambiguous.' }
+                    if ($snapshot.Errors.ContainsKey("PimRules:$($role[0].id)")) { throw $snapshot.Errors["PimRules:$($role[0].id)"] }
+                    $rules = @($snapshot.Data.PimRules[$role[0].id])
+                    $expiration = @($rules | Where-Object id -eq 'Expiration_EndUser_Assignment')
+                    $enablement = @($rules | Where-Object id -eq 'Enablement_EndUser_Assignment')
+                    $eligibilityLimit = @($rules | Where-Object id -eq 'Expiration_Admin_Eligibility')
+                    if ($expiration.Count -ne 1 -or $enablement.Count -ne 1 -or $eligibilityLimit.Count -ne 1) { throw 'Required PIM rules are missing.' }
+                    $activationDuration = [Xml.XmlConvert]::ToTimeSpan($expiration[0].maximumDuration)
+                    if ($activationDuration -le [timespan]::Zero) { throw 'Invalid PIM activation duration.' }
+                    if ($activationDuration -gt [timespan]::FromHours(1)) { $activationDuration = [timespan]::FromHours(1) }
+                    $eligibilityDuration = [timespan]::FromDays(90)
+                    if ($eligibilityLimit[0].isExpirationRequired -eq $true) {
+                        $maximum = [Xml.XmlConvert]::ToTimeSpan($eligibilityLimit[0].maximumDuration)
+                        if ($maximum -le [timespan]::Zero) { throw 'Invalid PIM eligibility duration.' }
+                        if ($maximum -lt $eligibilityDuration) { $eligibilityDuration = $maximum }
+                    }
+                    $desiredRules = @(
+                        @{ '@odata.type' = '#microsoft.graph.unifiedRoleManagementPolicyExpirationRule'; id = $expiration[0].id; target = $expiration[0].target; isExpirationRequired = $true; maximumDuration = [Xml.XmlConvert]::ToString($activationDuration) },
+                        @{ '@odata.type' = '#microsoft.graph.unifiedRoleManagementPolicyEnablementRule'; id = $enablement[0].id; target = $enablement[0].target; enabledRules = @(@($enablement[0].enabledRules) + @('MultiFactorAuthentication', 'Justification') | Sort-Object -Unique) }
+                    )
+                    foreach ($rule in $desiredRules) {
+                        if ($rule.target.caller -ne 'EndUser' -or $rule.target.level -ne 'Assignment') { throw 'Unexpected PIM activation rule target.' }
+                    }
+                    $roleNominations = @($users | Where-Object { $_.userPrincipalName -in @($config.PimAssignments | Where-Object RoleDefinitionId -eq $role[0].id | ForEach-Object { $_.Upn }) })
+                    if (@($eligible | Where-Object { $_.roleDefinitionId -eq $role[0].id -and $_.principalId -notin $roleNominations.id }).Count) {
+                        throw 'Other users have eligibility for this role; shared activation-policy changes require separate impact review.'
+                    }
+                    $existing = @($eligible | Where-Object { $_.principalId -eq $user.id -and $_.roleDefinitionId -eq $role[0].id -and $_.directoryScopeId -eq '/' })
+                    if ($existing.Count -gt 1) { throw 'Multiple eligibility instances require reconciliation.' }
+                    if ($existing.Count -eq 1 -and (-not $existing[0].startDateTime -or -not $existing[0].endDateTime -or
+                        [datetimeoffset]$existing[0].startDateTime -gt $now -or [datetimeoffset]$existing[0].endDateTime -le $now -or
+                        [datetimeoffset]$existing[0].endDateTime -gt $now.Add($eligibilityDuration))) { throw 'Existing eligibility is not current and time-bounded as intended; it will not be overwritten.' }
+                    if (-not $existing.Count) {
+                        if (@($direct | Where-Object { $_.principalId -eq $user.id -and $_.roleDefinitionId -eq $role[0].id }).Count) { throw 'A direct assignment already grants this role; no standing roles will be removed.' }
+                        if (@($requests | Where-Object { $_.principalId -eq $user.id -and $_.roleDefinitionId -eq $role[0].id -and
+                            $_.status -notin @('Canceled', 'Denied', 'Failed', 'Revoked', 'ScheduleRemoved') }).Count) { throw 'An earlier eligibility request needs reconciliation before submitting another.' }
+                    }
+                    $plans.Add(@{
+                        User = $user; Role = $role[0]; PolicyId = $policy[0].policyId; BeforeRules = $rules; DesiredRules = $desiredRules; Existing = $existing
+                        Request = @{ action = 'adminAssign'; principalId = $user.id; roleDefinitionId = $role[0].id; directoryScopeId = '/'; justification = 'Phase2 approved least-privilege pilot; activation testing required before standing-access retirement.'
+                            scheduleInfo = @{ startDateTime = $now.ToString('o'); expiration = @{ type = 'afterDateTime'; endDateTime = $now.Add($eligibilityDuration).ToString('o') } } }
+                    })
+                }
+                $beforeFile = Save-Phase2Evidence -Directory $OutputDirectory -Label 'pim-before' -Value @{ TenantId = $config.TenantId; Plans = $plans.ToArray(); Snapshot = $snapshot }
+                if ($Apply -and $PSCmdlet.ShouldProcess(($config.PimAssignments.Upn -join ', '), 'Set role-wide activation to at most one hour with MFA/justification and add at most 90-day eligibility; retain standing access')) {
+                    foreach ($plan in $plans) {
+                        $rulesPath = "/policies/roleManagementPolicies/$($plan.PolicyId)/rules"
+                        $latestRules = @(Get-Phase2Collection $rulesPath)
+                        if ((ConvertTo-Phase2CanonicalJson $latestRules) -cne (ConvertTo-Phase2CanonicalJson $plan.BeforeRules)) { throw 'PIM rules changed during preflight; reconcile before retrying.' }
+                        $latestEligible = @(Get-Phase2Collection '/roleManagement/directory/roleEligibilityScheduleInstances' | Where-Object roleDefinitionId -eq $plan.Role.id)
+                        if ((ConvertTo-Phase2CanonicalJson $latestEligible) -cne (ConvertTo-Phase2CanonicalJson @($eligible | Where-Object roleDefinitionId -eq $plan.Role.id))) { throw 'PIM eligibility changed during preflight.' }
+                        foreach ($rule in $plan.DesiredRules) {
+                            $beforeRule = @($latestRules | Where-Object id -eq $rule.id)[0]
+                            $projection = @{}
+                            foreach ($key in $rule.Keys) { $projection[$key] = $beforeRule[$key] }
+                            if ((ConvertTo-Phase2CanonicalJson $projection) -cne (ConvertTo-Phase2CanonicalJson $rule)) {
+                                $null = Invoke-Phase2Graph -Path "$rulesPath/$($rule.id)" -Method PATCH -Body $rule
+                            }
+                            $verified = Invoke-Phase2Graph "$rulesPath/$($rule.id)"
+                            $null = Save-Phase2Evidence -Directory $OutputDirectory -Label 'pim-rule-after' -Value @{ TenantId = $config.TenantId; BeforeFile = $beforeFile; PolicyId = $plan.PolicyId; Rule = $verified }
+                            $projection = @{}
+                            foreach ($key in $rule.Keys) { $projection[$key] = $verified[$key] }
+                            if ((ConvertTo-Phase2CanonicalJson $projection) -cne (ConvertTo-Phase2CanonicalJson $rule)) { throw 'PIM rule read-back failed; no eligibility request submitted for this target.' }
+                        }
+                        if (-not $plan.Existing.Count) {
+                            $latestRequests = @(Get-Phase2Collection '/roleManagement/directory/roleEligibilityScheduleRequests')
+                            if (@($latestRequests | Where-Object { $_.principalId -eq $plan.User.id -and $_.roleDefinitionId -eq $plan.Role.id -and $_.status -notin @('Canceled', 'Denied', 'Failed', 'Revoked', 'ScheduleRemoved') }).Count) { throw 'An eligibility request appeared; reconcile before resubmitting.' }
+                            $receipt = Invoke-Phase2Graph -Path '/roleManagement/directory/roleEligibilityScheduleRequests' -Method POST -Body $plan.Request
+                            $null = Save-Phase2Evidence -Directory $OutputDirectory -Label 'pim-requested' -Value @{ TenantId = $config.TenantId; BeforeFile = $beforeFile; Request = $plan.Request; Receipt = $receipt }
+                            if (-not $receipt.id -or $receipt.status -in @('Failed', 'Denied', 'Canceled')) { throw 'PIM eligibility request was not accepted; inspect the receipt.' }
+                        }
+                    }
+                    $after = @(Get-Phase2Collection '/roleManagement/directory/roleEligibilityScheduleInstances')
+                    $status = 'STAGED'
+                    foreach ($plan in $plans) {
+                        $matches = @($after | Where-Object { $_.principalId -eq $plan.User.id -and $_.roleDefinitionId -eq $plan.Role.id -and $_.directoryScopeId -eq '/' -and
+                            $_.startDateTime -and $_.endDateTime -and [datetimeoffset]$_.startDateTime -le [datetimeoffset]::UtcNow -and
+                            [datetimeoffset]$_.endDateTime -gt [datetimeoffset]::UtcNow -and [datetimeoffset]$_.endDateTime -le [datetimeoffset]$plan.Request.scheduleInfo.expiration.endDateTime })
+                        if ($matches.Count -ne 1) { $status = 'PENDING-PROPAGATION' }
+                    }
+                    $afterFile = Save-Phase2Evidence -Directory $OutputDirectory -Label 'pim-after' -Value @{ TenantId = $config.TenantId; BeforeFile = $beforeFile; Eligibility = $after; Status = $status }
+                    $results.Add(@{ Action = $step; Status = $status; Evidence = $afterFile; Note = 'Eligibility and role-wide activation controls staged. Standing roles retained; successful human activation and least-privilege testing required.' })
+                }
+                else { $results.Add(@{ Action = $step; Status = 'PLANNED'; Evidence = $beforeFile }) }
+            }
+            'License' {
+                if (-not $LicenseUserUpn -or $LicenseSkuId -eq [guid]::Empty -or $LicenseUserUpn -in $config.EmergencyUpns) {
+                    throw 'Specify an approved non-emergency LicenseUserUpn and LicenseSkuId.'
+                }
+                $userPath = '/users/' + [uri]::EscapeDataString($LicenseUserUpn)
+                $select = '?$select=id,userPrincipalName,accountEnabled,userType,usageLocation,assignedLicenses,assignedPlans,licenseAssignmentStates'
+                $user = Invoke-Phase2Graph ($userPath + $select)
+                $null = Resolve-Phase2Users -Snapshot @{ Data = @{ Users = @($user) }; Errors = @{} } -Upns @($LicenseUserUpn)
+                if ($user.usageLocation -notmatch '^[A-Z]{2}$') { throw 'A verified usage location is required; none will be inferred.' }
+                $skus = @(Get-Phase2Collection '/subscribedSkus')
+                $sku = @($skus | Where-Object { $_.skuId -eq $LicenseSkuId.ToString() -and $_.capabilityStatus -eq 'Enabled' })
+                if ($sku.Count -ne 1) { throw 'The nominated license SKU is not uniquely available and enabled.' }
+                $planIds = @($sku[0].servicePlans | Where-Object {
+                    $_.servicePlanName -in @('AAD_PREMIUM', 'AAD_PREMIUM_P2') -and $_.provisioningStatus -eq 'Success'
+                } | ForEach-Object { $_.servicePlanId })
+                if (-not $planIds.Count) { throw 'The SKU contains no provisioned Entra P1/P2 service plan.' }
+                if (@($user.assignedPlans | Where-Object { $_.servicePlanId -in $planIds -and $_.capabilityStatus -eq 'Enabled' }).Count) {
+                    $results.Add(@{ Action = $step; Status = 'IMPLEMENTED'; Note = 'Entra P1/P2 entitlement already enabled; no license changes.' })
+                    continue
+                }
+                if ($LicenseSkuId.ToString() -in @($user.assignedLicenses.skuId)) {
+                    throw 'The SKU is already assigned with disabled or pending Entra services; reconcile it without replacing existing settings.'
+                }
+                if ($null -eq $sku[0].prepaidUnits.enabled -or $null -eq $sku[0].consumedUnits -or
+                    ($sku[0].prepaidUnits.enabled - $sku[0].consumedUnits) -lt 1) { throw 'No available seat in the nominated SKU.' }
+                $disabledPlans = @($sku[0].servicePlans | Where-Object { $_.servicePlanId -notin $planIds } | ForEach-Object { $_.servicePlanId })
+                $body = @{ addLicenses = @(@{ skuId = $LicenseSkuId.ToString(); disabledPlans = $disabledPlans }); removeLicenses = @() }
+                $beforeFile = Save-Phase2Evidence -Directory $OutputDirectory -Label 'license-before' -Value @{
+                    TenantId = $config.TenantId; User = $user; Sku = $sku[0]; Desired = $body
+                }
+                if ($Apply -and $PSCmdlet.ShouldProcess($LicenseUserUpn, "Assign one existing $($sku[0].skuPartNumber) seat with only Entra P1/P2 enabled")) {
+                    $latest = Invoke-Phase2Graph ($userPath + $select)
+                    if ((ConvertTo-Phase2CanonicalJson $latest.assignedLicenses) -cne (ConvertTo-Phase2CanonicalJson $user.assignedLicenses)) {
+                        throw 'License assignments changed during preflight; no assignment was submitted.'
+                    }
+                    $receipt = Invoke-Phase2Graph -Path ($userPath + '/assignLicense') -Method POST -Body $body
+                    $null = Save-Phase2Evidence -Directory $OutputDirectory -Label 'license-assigned' -Value @{
+                        TenantId = $config.TenantId; BeforeFile = $beforeFile; Receipt = $receipt
+                    }
+                    $after = Invoke-Phase2Graph ($userPath + $select)
+                    $afterFile = Save-Phase2Evidence -Directory $OutputDirectory -Label 'license-after' -Value @{
+                        TenantId = $config.TenantId; BeforeFile = $beforeFile; User = $after
+                    }
+                    $assigned = @($after.assignedLicenses | Where-Object skuId -eq $LicenseSkuId.ToString())
+                    if ($assigned.Count -ne 1) {
+                        throw 'Assigned license read-back differs; reconcile evidence before retrying.'
+                    }
+                    if ((ConvertTo-Phase2CanonicalJson $assigned[0].disabledPlans) -cne (ConvertTo-Phase2CanonicalJson $disabledPlans)) {
+                        $companyPlans = @($sku[0].servicePlans | Where-Object appliesTo -eq 'Company' | ForEach-Object { $_.servicePlanId })
+                        $omitted = @($disabledPlans | Where-Object { $_ -notin $assigned[0].disabledPlans })
+                        $unexpected = @($assigned[0].disabledPlans | Where-Object { $_ -notin $disabledPlans })
+                        $directState = @($after.licenseAssignmentStates | Where-Object { $_.skuId -eq $LicenseSkuId.ToString() -and -not $_.assignedByGroup })
+                        if ($unexpected.Count -or @($omitted | Where-Object { $_ -notin $companyPlans }).Count -or
+                            $directState.Count -ne 1 -or $directState[0].state -ne 'Active' -or $directState[0].error -ne 'None' -or
+                            (ConvertTo-Phase2CanonicalJson $directState[0].disabledPlans) -cne (ConvertTo-Phase2CanonicalJson $disabledPlans)) {
+                            throw 'Assigned license read-back differs beyond verified company-plan omissions; reconcile evidence before retrying.'
+                        }
+                    }
+                    foreach ($prior in $user.assignedLicenses) {
+                        $preserved = @($after.assignedLicenses | Where-Object skuId -eq $prior.skuId)
+                        if ($preserved.Count -ne 1 -or (ConvertTo-Phase2CanonicalJson $preserved[0]) -cne (ConvertTo-Phase2CanonicalJson $prior)) {
+                            throw 'An existing license changed; inspect evidence before any further action.'
+                        }
+                    }
+                    $failed = @($after.licenseAssignmentStates | Where-Object { $_.skuId -eq $LicenseSkuId.ToString() -and $_.state -in @('Error', 'ActiveWithError') })
+                    if ($failed.Count) { throw 'The license assignment reports a provisioning error; inspect evidence.' }
+                    $status = if (@($after.assignedPlans | Where-Object { $_.servicePlanId -in $planIds -and $_.capabilityStatus -eq 'Enabled' }).Count) { 'IMPLEMENTED' } else { 'PENDING-PROPAGATION' }
+                    $results.Add(@{ Action = $step; Status = $status; Evidence = $afterFile; Note = 'Existing licenses preserved; no purchase. Entra P1/P2 enabled and other user-scoped plans disabled. Company-scoped plans are not user-level controls.' })
+                }
+                else { $results.Add(@{ Action = $step; Status = 'PLANNED'; Evidence = $beforeFile }) }
+            }
             'ConditionalAccessPilot' {
                 $defaults = Invoke-Phase2Graph '/policies/identitySecurityDefaultsEnforcementPolicy'
                 $beforeFile = Save-Phase2Evidence -Directory $OutputDirectory -Label 'ca-defaults' -Value @{

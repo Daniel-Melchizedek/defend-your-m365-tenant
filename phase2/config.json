@@ -1,0 +1,28 @@
+{
+  "TenantId": "00000000-0000-0000-0000-000000000001",
+  "TenantDomain": "contoso.onmicrosoft.com",
+  "OperatorUpn": "operator@contoso.onmicrosoft.com",
+  "EmergencyUpns": [
+    "breakglass1@contoso.onmicrosoft.com",
+    "breakglass2@contoso.onmicrosoft.com"
+  ],
+  "PilotUpns": [
+    "pilotuser1@contoso.onmicrosoft.com"
+  ],
+  "ReviewerUpns": [
+    "reviewer1@contoso.onmicrosoft.com",
+    "reviewer2@contoso.onmicrosoft.com"
+  ],
+  "PimAssignments": [
+    {
+      "Upn": "pilotuser1@contoso.onmicrosoft.com",
+      "RoleDefinitionId": "b1be1c3e-b65d-4f19-8427-f6fa0d97feb9"
+    },
+    {
+      "Upn": "pilotuser1@contoso.onmicrosoft.com",
+      "RoleDefinitionId": "66666666-7777-8888-9999-55555555555a"
+    }
+  ],
+  "ManagedPolicyIds": {},
+  "TeamsPilotPolicyName": "Phase2-SecureMeetings"
+}

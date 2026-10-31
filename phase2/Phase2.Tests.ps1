@@ -6,6 +6,208 @@ BeforeAll {
 }
 AfterAll { Remove-Variable Phase2TestState -Scope Global -ErrorAction SilentlyContinue }
 
+Describe 'License deployment safety' {
+    BeforeEach {
+        $global:Phase2TestState = @{
+            Config = @{ TenantId = 'tenant'; OperatorUpn = 'operator@example.com'; EmergencyUpns = @('emergency@example.com') }
+            User = @{ id = 'user'; userPrincipalName = 'licensed@example.com'; accountEnabled = $true; userType = 'Member'; usageLocation = 'SG'; assignedPlans = @(); assignedLicenses = @(@{ skuId = 'prior'; disabledPlans = @('keep-disabled') }); licenseAssignmentStates = @() }
+            Sku = @{ skuId = 'c42b9cae-ea4f-4ab7-9717-81576235ccac'; skuPartNumber = 'TEST'; capabilityStatus = 'Enabled'; prepaidUnits = @{ enabled = 5 }; consumedUnits = 4; servicePlans = @(
+                @{ servicePlanName = 'AAD_PREMIUM_P2'; servicePlanId = 'entra-plan'; provisioningStatus = 'Success' },
+                @{ servicePlanName = 'UNRELATED'; servicePlanId = 'unrelated-plan'; provisioningStatus = 'Success' }
+            ) }
+        }
+        Mock Import-Module {}
+        Mock Read-Phase2Config { $global:Phase2TestState.Config }
+        Mock Connect-Phase2Graph { @{ userPrincipalName = 'operator@example.com' } }
+        Mock Get-Phase2Collection { $global:Phase2TestState.Sku }
+        Mock Save-Phase2Evidence { $global:Phase2TestState.Report = $Value; 'evidence.json' }
+        Mock Invoke-Phase2Graph {
+            if ($Method -eq 'POST') {
+                $global:Phase2TestState.Body = $Body
+                $global:Phase2TestState.User.assignedLicenses += $Body.addLicenses
+                $global:Phase2TestState.User.assignedPlans = @(@{ servicePlanId = 'entra-plan'; capabilityStatus = 'Enabled' })
+            }
+            $global:Phase2TestState.User | ConvertTo-Json -Depth 15 | ConvertFrom-Json -AsHashtable
+        }
+        $script:parameters = @{ Action = 'License'; LicenseUserUpn = 'licensed@example.com'; LicenseSkuId = 'c42b9cae-ea4f-4ab7-9717-81576235ccac' }
+    }
+
+    It 'plans and honors WhatIf without write scopes or assignments' {
+        & $script:deployPath @parameters
+        & $script:deployPath @parameters -Apply -WhatIf
+        Should -Invoke Invoke-Phase2Graph -Times 0 -ParameterFilter { $Method -eq 'POST' }
+        Should -Invoke Connect-Phase2Graph -Times 2 -ParameterFilter { $WriteScopes.Count -eq 0 }
+    }
+
+    It 'adds only Entra services, preserves prior licenses and does not duplicate on rerun' {
+        & $script:deployPath @parameters -Apply -Confirm:$false
+        $global:Phase2TestState.Report.Results[0].Status | Should -Be 'IMPLEMENTED'
+        $global:Phase2TestState.Body.removeLicenses | Should -HaveCount 0
+        $global:Phase2TestState.Body.addLicenses[0].disabledPlans | Should -Contain 'unrelated-plan'
+        $global:Phase2TestState.User.assignedLicenses[0].disabledPlans | Should -Contain 'keep-disabled'
+        & $script:deployPath @parameters -Apply -Confirm:$false
+        Should -Invoke Invoke-Phase2Graph -Times 1 -ParameterFilter { $Method -eq 'POST' }
+    }
+
+    It 'validates omitted <Scope> plans with active state <Active> as <ExpectedStatus>' -TestCases @(
+        @{ Scope = 'Company'; Active = $true; ExpectedStatus = 'IMPLEMENTED' },
+        @{ Scope = 'User'; Active = $true; ExpectedStatus = 'INCOMPLETE' },
+        @{ Scope = 'Company'; Active = $false; ExpectedStatus = 'INCOMPLETE' }
+    ) {
+        param($Scope, $Active, $ExpectedStatus)
+        $global:Phase2TestState.Active = $Active
+        $global:Phase2TestState.Sku.servicePlans += @{ servicePlanName = 'SCOPED'; servicePlanId = 'scope-plan'; provisioningStatus = 'Success'; appliesTo = $Scope }
+        Mock Invoke-Phase2Graph {
+            if ($Method -eq 'POST') {
+                $global:Phase2TestState.User.assignedLicenses += @{ skuId = $Body.addLicenses[0].skuId; disabledPlans = @($Body.addLicenses[0].disabledPlans | Where-Object { $_ -ne 'scope-plan' }) }
+                $global:Phase2TestState.User.assignedPlans = @(@{ servicePlanId = 'entra-plan'; capabilityStatus = 'Enabled' })
+                $global:Phase2TestState.User.licenseAssignmentStates = @(@{
+                    skuId = $Body.addLicenses[0].skuId; disabledPlans = $Body.addLicenses[0].disabledPlans; assignedByGroup = $null; error = 'None'
+                    state = $(if ($global:Phase2TestState.Active) { 'Active' } else { 'Error' })
+                })
+            }
+            $global:Phase2TestState.User | ConvertTo-Json -Depth 15 | ConvertFrom-Json -AsHashtable
+        }
+        if ($ExpectedStatus -eq 'INCOMPLETE') { { & $script:deployPath @parameters -Apply -Confirm:$false } | Should -Throw '*incomplete*' }
+        else { & $script:deployPath @parameters -Apply -Confirm:$false }
+        $global:Phase2TestState.Report.Results[0].Status | Should -Be $ExpectedStatus
+    }
+
+    It 'rejects exhausted seats and missing usage location before writes' {
+        $global:Phase2TestState.Sku.consumedUnits = 5
+        { & $script:deployPath @parameters -Apply -Confirm:$false } | Should -Throw '*incomplete*'
+        $global:Phase2TestState.Sku.consumedUnits = 4
+        $global:Phase2TestState.User.usageLocation = $null
+        { & $script:deployPath @parameters -Apply -Confirm:$false } | Should -Throw '*incomplete*'
+        Should -Invoke Invoke-Phase2Graph -Times 0 -ParameterFilter { $Method -eq 'POST' }
+    }
+
+    It 'rejects existing SKU settings rather than enabling disabled services' {
+        $global:Phase2TestState.User.assignedLicenses += @{ skuId = $parameters.LicenseSkuId; disabledPlans = @('entra-plan') }
+        { & $script:deployPath @parameters -Apply -Confirm:$false } | Should -Throw '*incomplete*'
+        Should -Invoke Invoke-Phase2Graph -Times 0 -ParameterFilter { $Method -eq 'POST' }
+    }
+
+    It 'rejects a changed read-back instead of reporting success' {
+        Mock Invoke-Phase2Graph { @{ id = 'unverified-receipt' } } -ParameterFilter { $Method -eq 'POST' }
+        { & $script:deployPath @parameters -Apply -Confirm:$false } | Should -Throw '*incomplete*'
+        $global:Phase2TestState.Report.Results[0].Status | Should -Be 'INCOMPLETE'
+    }
+}
+
+Describe 'PIM eligibility deployment safety' {
+    BeforeEach {
+        $roleId = 'b1be1c3e-b65d-4f19-8427-f6fa0d97feb9'
+        $global:Phase2TestState = @{
+            Config = @{ TenantId = 'tenant'; EmergencyUpns = @('emergency@example.com'); PimAssignments = @(@{ Upn = 'pilot@example.com'; RoleDefinitionId = $roleId }) }
+            Rules = @(
+                @{ id = 'Expiration_EndUser_Assignment'; '@odata.type' = '#microsoft.graph.unifiedRoleManagementPolicyExpirationRule'; target = @{ caller = 'EndUser'; level = 'Assignment' }; maximumDuration = 'PT8H'; isExpirationRequired = $true },
+                @{ id = 'Enablement_EndUser_Assignment'; '@odata.type' = '#microsoft.graph.unifiedRoleManagementPolicyEnablementRule'; target = @{ caller = 'EndUser'; level = 'Assignment' }; enabledRules = @('Justification', 'Ticketing') },
+                @{ id = 'Expiration_Admin_Eligibility'; maximumDuration = 'P365D'; isExpirationRequired = $false },
+                @{ id = 'Approval_EndUser_Assignment'; setting = @{ isApprovalRequired = $true } }
+            )
+            Eligible = @(); Requests = @()
+        }
+        $global:Phase2TestState.Snapshot = @{ Errors = @{}; Data = @{
+            Users = @(@{ id = 'pilot'; userPrincipalName = 'pilot@example.com'; accountEnabled = $true; userType = 'Member' })
+            Roles = @(@{ id = $roleId; displayName = 'Conditional Access Administrator'; isBuiltIn = $true })
+            RolePolicyAssignments = @(@{ roleDefinitionId = $roleId; policyId = 'policy'; scopeId = '/'; scopeType = 'DirectoryRole' })
+            PimRules = @{ $roleId = $global:Phase2TestState.Rules }
+            EligibleSchedules = @(); RoleAssignments = @()
+        } }
+        Mock Import-Module {}
+        Mock Read-Phase2Config { $global:Phase2TestState.Config }
+        Mock Connect-Phase2Graph { @{ userPrincipalName = 'pilot@example.com' } }
+        Mock Get-Phase2Snapshot { $global:Phase2TestState.Snapshot | ConvertTo-Json -Depth 25 | ConvertFrom-Json -AsHashtable }
+        Mock Assert-Phase2Readiness {}
+        Mock Save-Phase2Evidence { $global:Phase2TestState.Report = $Value; 'evidence.json' }
+        Mock Get-Phase2Collection {
+            if ($Path -like '*/rules') { return $global:Phase2TestState.Rules }
+            if ($Path -like '*roleEligibilityScheduleRequests') { return $global:Phase2TestState.Requests }
+            if ($Path -like '*roleEligibilityScheduleInstances') { return $global:Phase2TestState.Eligible }
+            throw "Unexpected path $Path"
+        }
+        Mock Invoke-Phase2Graph {
+            if ($Method -eq 'POST') {
+                $global:Phase2TestState.Request = $Body
+                $global:Phase2TestState.Eligible = @(@{ principalId = $Body.principalId; roleDefinitionId = $Body.roleDefinitionId; directoryScopeId = '/'; startDateTime = $Body.scheduleInfo.startDateTime; endDateTime = $Body.scheduleInfo.expiration.endDateTime })
+                return @{ id = 'request'; status = 'Provisioned' }
+            }
+            $ruleId = ($Path -split '/')[-1]
+            if ($Method -eq 'PATCH') { $global:Phase2TestState.Rules = @($global:Phase2TestState.Rules | ForEach-Object { if ($_.id -eq $ruleId) { $Body } else { $_ } }) }
+            return @($global:Phase2TestState.Rules | Where-Object id -eq $ruleId)[0]
+        }
+    }
+
+    It 'plans and honors WhatIf without privilege writes' {
+        & $script:deployPath -Action PimEligibility
+        & $script:deployPath -Action PimEligibility -Apply -WhatIf
+        Should -Invoke Invoke-Phase2Graph -Times 0
+        Should -Invoke Connect-Phase2Graph -Times 2 -ParameterFilter { $WriteScopes.Count -eq 0 }
+    }
+
+    It 'requires MFA, retains existing controls and bounds activation and eligibility' {
+        & $script:deployPath -Action PimEligibility -Apply -Confirm:$false
+        $global:Phase2TestState.Report.Results[0].Status | Should -Be 'STAGED'
+        ($global:Phase2TestState.Rules | Where-Object id -eq 'Expiration_EndUser_Assignment').maximumDuration | Should -Be 'PT1H'
+        ($global:Phase2TestState.Rules | Where-Object id -eq 'Enablement_EndUser_Assignment').enabledRules | Should -Contain 'Ticketing'
+        ($global:Phase2TestState.Rules | Where-Object id -eq 'Enablement_EndUser_Assignment').enabledRules | Should -Contain 'MultiFactorAuthentication'
+        ($global:Phase2TestState.Rules | Where-Object id -eq 'Approval_EndUser_Assignment').setting.isApprovalRequired | Should -BeTrue
+        $global:Phase2TestState.Request.action | Should -Be 'adminAssign'
+        ([datetimeoffset]$global:Phase2TestState.Request.scheduleInfo.expiration.endDateTime - [datetimeoffset]$global:Phase2TestState.Request.scheduleInfo.startDateTime).TotalDays | Should -Be 90
+        Should -Invoke Invoke-Phase2Graph -Times 0 -ParameterFilter { $Path -like '*roleAssignment*' }
+    }
+
+    It 'does not relax an existing shorter activation duration' {
+        $global:Phase2TestState.Rules[0].maximumDuration = 'PT30M'
+        & $script:deployPath -Action PimEligibility -Apply -Confirm:$false
+        ($global:Phase2TestState.Rules | Where-Object id -eq 'Expiration_EndUser_Assignment').maximumDuration | Should -Be 'PT30M'
+    }
+
+    It 'rejects other eligible users and unresolved requests before any write' {
+        $global:Phase2TestState.Snapshot.Data.EligibleSchedules = @(@{ principalId = 'other'; roleDefinitionId = $roleId })
+        { & $script:deployPath -Action PimEligibility -Apply -Confirm:$false } | Should -Throw '*incomplete*'
+        $global:Phase2TestState.Snapshot.Data.EligibleSchedules = @()
+        $global:Phase2TestState.Requests = @(@{ principalId = 'pilot'; roleDefinitionId = $roleId; status = 'PendingProvisioning' })
+        { & $script:deployPath -Action PimEligibility -Apply -Confirm:$false } | Should -Throw '*incomplete*'
+        Should -Invoke Invoke-Phase2Graph -Times 0
+    }
+
+    It 'does not create eligibility after a rule read-back mismatch' {
+        Mock Invoke-Phase2Graph { @{ id = 'incorrect' } } -ParameterFilter { $Method -ne 'PATCH' }
+        { & $script:deployPath -Action PimEligibility -Apply -Confirm:$false } | Should -Throw '*incomplete*'
+        Should -Invoke Invoke-Phase2Graph -Times 0 -ParameterFilter { $Method -eq 'POST' }
+    }
+}
+
+Describe 'PIM assessment completeness' {
+    BeforeEach {
+        $config = @{ PimAssignments = @(@{ Upn = 'pilot@example.com'; RoleDefinitionId = 'first' }, @{ Upn = 'pilot@example.com'; RoleDefinitionId = 'second' }) }
+        $script:snapshot = @{ Errors = @{}; Data = @{
+            Users = @(@{ id = 'pilot'; userPrincipalName = 'pilot@example.com'; accountEnabled = $true; userType = 'Member' })
+            ActiveSchedules = @(@{ principalId = 'pilot'; assignmentType = 'Assigned'; startDateTime = $null; endDateTime = $null })
+            RoleAssignments = @(); PimRules = @{}
+            EligibleSchedules = @('first', 'second' | ForEach-Object { @{ principalId = 'pilot'; roleDefinitionId = $_; directoryScopeId = '/'; startDateTime = '2020-01-01T00:00:00Z'; endDateTime = [datetimeoffset]::UtcNow.AddDays(1).ToString('o') } })
+        } }
+        foreach ($role in @('first', 'second')) {
+            $snapshot.Data.PimRules[$role] = @(
+                @{ id = 'Expiration_EndUser_Assignment'; isExpirationRequired = $true; maximumDuration = 'PT1H' },
+                @{ id = 'Enablement_EndUser_Assignment'; enabledRules = @('MultiFactorAuthentication', 'Justification') }
+            )
+        }
+        Mock Get-Phase2Collection {} -ModuleName Phase2.Common
+    }
+
+    It 'reports null-start standing assignments as staged without a conversion error' {
+        (Get-Phase2PimAssessment $config $snapshot).Status | Should -Be 'STAGED'
+    }
+
+    It 'checks the second nomination despite standing access on the first' {
+        $snapshot.Data.PimRules.second[0].maximumDuration = 'PT8H'
+        (Get-Phase2PimAssessment $config $snapshot).Status | Should -Be 'NOT-CONFIGURED'
+    }
+}
+
 Describe 'Canonical policy comparison' {
     It 'accepts service-normalized consent without mutating evidence' {
         $expected = @{ isEnabled = $true; notifyReviewers = $true; reviewers = @(@{ query = '/users/reviewer-one'; queryType = 'MicrosoftGraph' }) }
